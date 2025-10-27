@@ -184,7 +184,7 @@
           />
           <Button
             v-else
-            label="下载报告"
+            label="下载报告（完全免费！）"
             icon="pi pi-download"
             severity="success"
             :disabled="!thinkingCompleted"
