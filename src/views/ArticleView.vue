@@ -149,6 +149,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Checkbox from 'primevue/checkbox'
@@ -166,6 +167,8 @@ const timer = ref<number | undefined>()
 const successVisible = ref(false)
 const hasSubmitted = ref(false)
 const validationMessage = ref('')
+
+const router = useRouter()
 
 const acknowledgements = reactive({
   foundation: false,
@@ -285,6 +288,15 @@ const submitReading = () => {
   persistProgress(true)
   stopTimer()
   successVisible.value = true
+  navigateBackToTest()
+}
+
+const navigateBackToTest = () => {
+  if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+    window.close()
+    return
+  }
+  router.push({ name: 'Test' })
 }
 
 onMounted(() => {
@@ -304,7 +316,7 @@ const formatSeconds = (value: number) => {
   const minutes = Math.floor(value / 60)
   const seconds = value % 60
   const minutePart = minutes > 0 ? `${minutes} 分 ` : ''
-  return `${minutePart}${seconds.toString().padStart(2, '0')} 秒`
+  return `${minutePart}${seconds} 秒`
 }
 
 watch(
@@ -384,11 +396,12 @@ watch(
 
 .timer-label {
   font-weight: 700;
-  color: #1d4ed8;
+  color: #0f172a;
 }
 
 .timer-value {
   font-size: 1.25rem;
+  color: #2563eb;
 }
 
 .timer-remaining {

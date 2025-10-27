@@ -55,17 +55,22 @@
 
     <div v-if="showResults" class="result-wrapper">
       <Card class="result-card">
-        <template #title>你的 MBTI 类型：{{ mbtiType }}</template>
+        <template #title>你的 MBTI 类型：{{ displayedMbtiType }}</template>
         <template #content>
           <p class="result-text">
             以下为每个维度的倾向与强度，仅供自我探索参考。
           </p>
           <Divider />
           <div class="dimension-grid">
-            <Card v-for="dimension in dimensionSummaries" :key="dimension.key" class="dimension-card">
+            <Card
+              v-for="(dimension, index) in dimensionSummaries"
+              :key="dimension.key"
+              class="dimension-card"
+              :class="{ 'is-locked': !fullResultsUnlocked && index >= visibleDimensionCount }"
+            >
               <template #title>{{ dimension.title }}（{{ dimension.letters[0] }} / {{ dimension.letters[1] }}）</template>
               <template #content>
-                <div class="dimension-body">
+                <div v-if="fullResultsUnlocked || index < visibleDimensionCount" class="dimension-body">
                   <ProgressBar :value="dimension.firstPercent" :showValue="false" class="dimension-progress" />
                   <div class="dimension-stats">
                     <span>{{ dimension.letters[0] }} {{ dimension.firstPercent }}% · {{ dimension.letters[1] }} {{ dimension.secondPercent }}%</span>
@@ -73,16 +78,69 @@
                   </div>
                   <p class="dimension-description">{{ dimension.description }}</p>
                 </div>
+                <div v-else class="dimension-locked">
+                  <i class="pi pi-lock"></i>
+                  <p>完整分析已锁定</p>
+                  <small>阅读两篇偏好文章即可解锁此维度的洞察。</small>
+                </div>
               </template>
             </Card>
           </div>
-          <Divider />
-          <div class="download-area">
-            <Button label="下载报告" icon="pi pi-download" severity="success" @click="beginGateFlow" />
-          </div>
-          <div v-if="wastedMessage" class="wasted-banner">
-            {{ wastedMessage }}
-          </div>
+          <template v-if="!fullResultsUnlocked">
+            <Message severity="warn" class="insight-message" :closable="false">
+              当前仅展示 50% 维度洞察。阅读以下两篇偏好拓展文章（预计共 3 分钟）即可解锁完整报告。
+            </Message>
+            <div class="insight-task-grid">
+              <Card
+                v-for="task in insightTaskDetails"
+                :key="task.index"
+                class="insight-task-card"
+                :class="{ 'is-complete': task.completed && task.meetsDuration }"
+              >
+                <template #title>
+                  <div class="insight-task-title">
+                    <i :class="task.completed && task.meetsDuration ? 'pi pi-check-circle' : 'pi pi-book'" />
+                    <span>{{ task.title }}</span>
+                  </div>
+                </template>
+                <template #content>
+                  <div class="insight-task-body">
+                    <p class="insight-progress">
+                      已阅读 {{ task.formattedDuration }} / 目标 {{ formatSeconds(task.requiredSeconds) }}
+                    </p>
+                    <p v-if="!task.meetsDuration" class="insight-remaining">
+                      仍需约 {{ task.formattedRemaining }} 并完成文章内互动
+                    </p>
+                    <Button
+                      label="打开文章"
+                      icon="pi pi-external-link"
+                      severity="help"
+                      outlined
+                      @click="openInsightArticle(task.index)"
+                    />
+                  </div>
+                </template>
+              </Card>
+            </div>
+            <div class="insight-actions">
+              <Button
+                label="刷新进度"
+                icon="pi pi-refresh"
+                severity="secondary"
+                outlined
+                @click="refreshInsightProgress"
+              />
+            </div>
+          </template>
+          <template v-else>
+            <Divider />
+            <div class="download-area">
+              <Button label="下载报告（完全免费！）" icon="pi pi-download" severity="success" @click="beginGateFlow" />
+            </div>
+            <div v-if="wastedMessage" class="wasted-banner">
+              {{ wastedMessage }}
+            </div>
+          </template>
         </template>
       </Card>
     </div>
@@ -197,7 +255,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -351,7 +409,11 @@ const dimensionSummaries = computed(() => {
   })
 })
 
-const mbtiType = computed(() => dimensionOrder.map((key) => dimensionSummaries.value.find((summary) => summary.key === key)!.primaryLetter).join(''))
+const fullMbtiType = computed(() =>
+  dimensionOrder
+    .map((key) => dimensionSummaries.value.find((summary) => summary.key === key)!.primaryLetter)
+    .join('')
+)
 
 const showResults = ref(false)
 const showValidationMessage = ref(false)
@@ -380,6 +442,51 @@ const articleCompleted = ref(false)
 const articleProgressInterval = ref<number | undefined>()
 let articleListenersAttached = false
 
+const FULL_RESULTS_STORAGE_KEY = 'mbtiFullResultsUnlocked'
+let insightsResetPerformed = false
+
+const INSIGHT_ARTICLES = [
+  {
+    storageKey: 'mbtiInsightAlpha',
+    routeName: 'InsightOne',
+    title: '文章一：洞察偏好与沟通错位',
+    requiredSeconds: 90
+  },
+  {
+    storageKey: 'mbtiInsightBeta',
+    routeName: 'InsightTwo',
+    title: '文章二：为偏好设计辅助习惯',
+    requiredSeconds: 90
+  }
+]
+
+const insightStates = reactive(
+  INSIGHT_ARTICLES.map(() => ({
+    duration: 0,
+    completed: false
+  }))
+)
+
+const resetInsightStates = (options?: { clearStorage?: boolean }) => {
+  insightStates.forEach((state) => {
+    state.duration = 0
+    state.completed = false
+  })
+  if (options?.clearStorage && typeof window !== 'undefined') {
+    INSIGHT_ARTICLES.forEach((article) => {
+      try {
+        localStorage.removeItem(article.storageKey)
+      } catch (error) {
+        console.warn(`无法清除 ${article.storageKey} 进度`, error)
+      }
+    })
+  }
+}
+
+const insightMonitorInterval = ref<number | undefined>()
+let insightListenersAttached = false
+let globalListenersAttached = false
+
 const thinkingDuration = ref(0)
 const thinkingElapsed = ref(0)
 const thinkingCompleted = ref(false)
@@ -389,19 +496,20 @@ const thinkingMessageInterval = ref<number | undefined>()
 
 const formStartTime = ref<number | null>(null)
 const wastedMessage = ref('')
+const fullResultsUnlocked = ref(false)
 
 const formatSeconds = (value: number) => {
   const minutes = Math.floor(value / 60)
   const seconds = Math.max(value % 60, 0)
   const minutePart = minutes > 0 ? `${minutes} 分 ` : ''
-  return `${minutePart}${seconds.toString().padStart(2, '0')} 秒`
+  return `${minutePart}${seconds} 秒`
 }
 
 const formatDurationLong = (value: number) => {
   const minutes = Math.floor(value / 60)
-  const seconds = value % 60
+  const seconds = Math.max(value % 60, 0)
   const minutePart = minutes > 0 ? `${minutes} 分` : ''
-  const secondPart = `${seconds.toString().padStart(2, '0')} 秒`
+  const secondPart = `${seconds} 秒`
   return minutePart ? `${minutePart} ${secondPart}` : secondPart
 }
 
@@ -418,6 +526,53 @@ const articleStatusMessage = computed(() => {
   }
   return '点击上方按钮在新标签页打开任务，完成互动并返回后即可解锁下一步。'
 })
+
+const visibleDimensionCount = computed(() => Math.ceil(dimensionSummaries.value.length / 2))
+
+const displayedMbtiType = computed(() => {
+  if (fullResultsUnlocked.value) {
+    return fullMbtiType.value
+  }
+  const letters = dimensionOrder.map((key, index) => {
+    const summary = dimensionSummaries.value.find((item) => item.key === key)
+    if (!summary) {
+      return '?'
+    }
+    if (index < visibleDimensionCount.value) {
+      return summary.primaryLetter
+    }
+    return '?'
+  })
+  return letters.join('')
+})
+
+const insightCompletionStates = computed(() =>
+  insightStates.map((state, index) => {
+    const article = INSIGHT_ARTICLES[index]
+    const meetsDuration = state.duration >= article.requiredSeconds
+    return {
+      ...state,
+      meetsDuration,
+      requiredSeconds: article.requiredSeconds,
+      title: article.title
+    }
+  })
+)
+
+const insightTaskDetails = computed(() =>
+  insightCompletionStates.value.map((state, index) => {
+    const remaining = Math.max(state.requiredSeconds - state.duration, 0)
+    return {
+      ...state,
+      index,
+      formattedDuration: formatSeconds(state.duration),
+      formattedRemaining: formatSeconds(remaining),
+      remaining
+    }
+  })
+)
+
+const insightsCompleted = computed(() => insightCompletionStates.value.every((state) => state.completed && state.meetsDuration))
 
 const thinkingMessagesPool = [
   '正在对四个偏好维度进行归一化处理…',
@@ -451,20 +606,36 @@ const openArticle = () => {
   window.open(articleUrl, '_blank', 'noopener')
 }
 
+const attachGlobalListeners = () => {
+  if (globalListenersAttached || typeof window === 'undefined') {
+    return
+  }
+  window.addEventListener('storage', handleStorageEvent)
+  window.addEventListener('focus', handleWindowFocus)
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }
+  globalListenersAttached = true
+}
+
+const detachGlobalListeners = () => {
+  if (globalListenersAttached && !articleListenersAttached && !insightListenersAttached && typeof window !== 'undefined') {
+    window.removeEventListener('storage', handleStorageEvent)
+    window.removeEventListener('focus', handleWindowFocus)
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+    globalListenersAttached = false
+  }
+}
+
 const stopArticleMonitoring = () => {
   if (articleProgressInterval.value !== undefined && typeof window !== 'undefined') {
     window.clearInterval(articleProgressInterval.value)
   }
   articleProgressInterval.value = undefined
-
-  if (articleListenersAttached && typeof window !== 'undefined') {
-    window.removeEventListener('storage', handleStorageEvent)
-    window.removeEventListener('focus', handleWindowFocus)
-  }
-  if (articleListenersAttached && typeof document !== 'undefined') {
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }
   articleListenersAttached = false
+  detachGlobalListeners()
 }
 
 const updateArticleProgress = () => {
@@ -488,20 +659,47 @@ const updateArticleProgress = () => {
   }
 }
 
+const updateInsightProgress = () => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  INSIGHT_ARTICLES.forEach((article, index) => {
+    try {
+      const raw = localStorage.getItem(article.storageKey)
+      if (!raw) {
+        insightStates[index].duration = 0
+        insightStates[index].completed = false
+        return
+      }
+      const data = JSON.parse(raw) as { completed?: boolean; duration?: number }
+      const duration = typeof data.duration === 'number' ? Math.max(0, Math.floor(data.duration)) : 0
+      insightStates[index].duration = duration
+      insightStates[index].completed = Boolean(data.completed)
+    } catch (error) {
+      console.warn(`无法读取 ${article.storageKey} 进度`, error)
+    }
+  })
+}
+
 const handleStorageEvent = (event: StorageEvent) => {
-  if (event.key === ARTICLE_STORAGE_KEY) {
+  if (!event.key || event.key === ARTICLE_STORAGE_KEY) {
     updateArticleProgress()
+  }
+  if (!event.key || INSIGHT_ARTICLES.some((article) => article.storageKey === event.key)) {
+    updateInsightProgress()
   }
 }
 
 const handleVisibilityChange = () => {
   if (typeof document !== 'undefined' && !document.hidden) {
     updateArticleProgress()
+    updateInsightProgress()
   }
 }
 
 const handleWindowFocus = () => {
   updateArticleProgress()
+  updateInsightProgress()
 }
 
 const startArticleMonitoring = () => {
@@ -510,15 +708,79 @@ const startArticleMonitoring = () => {
   }
   stopArticleMonitoring()
   updateArticleProgress()
-  if (!articleListenersAttached) {
-    window.addEventListener('storage', handleStorageEvent)
-    window.addEventListener('focus', handleWindowFocus)
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibilityChange)
-    }
-    articleListenersAttached = true
-  }
+  attachGlobalListeners()
+  articleListenersAttached = true
   articleProgressInterval.value = window.setInterval(updateArticleProgress, 1000)
+}
+
+const startInsightMonitoring = () => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  stopInsightMonitoring()
+  updateInsightProgress()
+  attachGlobalListeners()
+  insightListenersAttached = true
+  insightMonitorInterval.value = window.setInterval(updateInsightProgress, 1000)
+}
+
+const stopInsightMonitoring = () => {
+  if (insightMonitorInterval.value !== undefined && typeof window !== 'undefined') {
+    window.clearInterval(insightMonitorInterval.value)
+  }
+  insightMonitorInterval.value = undefined
+  insightListenersAttached = false
+  detachGlobalListeners()
+}
+
+const persistFullResultsUnlock = () => {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(
+        FULL_RESULTS_STORAGE_KEY,
+        JSON.stringify({ unlocked: true, timestamp: Date.now() })
+      )
+    }
+  } catch (error) {
+    console.warn('无法记录完整报告解锁状态', error)
+  }
+}
+
+const initializeFullResultsState = () => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    const raw = localStorage.getItem(FULL_RESULTS_STORAGE_KEY)
+    if (raw) {
+      const data = JSON.parse(raw) as { unlocked?: boolean }
+      if (data.unlocked) {
+        fullResultsUnlocked.value = true
+      }
+    }
+  } catch (error) {
+    console.warn('无法读取完整报告解锁状态', error)
+  }
+  if (!fullResultsUnlocked.value) {
+    updateInsightProgress()
+    if (insightsCompleted.value) {
+      fullResultsUnlocked.value = true
+      persistFullResultsUnlock()
+    }
+  }
+}
+
+const openInsightArticle = (index: number) => {
+  const article = INSIGHT_ARTICLES[index]
+  if (!article || typeof window === 'undefined') {
+    return
+  }
+  const url = router.resolve({ name: article.routeName }).href
+  window.open(url, '_blank', 'noopener')
+}
+
+const refreshInsightProgress = () => {
+  updateInsightProgress()
 }
 
 const resetArticleState = (options?: { clearStorage?: boolean }) => {
@@ -533,6 +795,16 @@ const resetArticleState = (options?: { clearStorage?: boolean }) => {
     } catch (error) {
       console.warn('无法清除文章进度', error)
     }
+  }
+}
+
+const clearFullResultsPersistence = () => {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(FULL_RESULTS_STORAGE_KEY)
+    }
+  } catch (error) {
+    console.warn('无法清除完整报告解锁记录', error)
   }
 }
 
@@ -647,6 +919,18 @@ const closeGate = () => {
   resetGateState({ clearStorage: true })
 }
 
+onMounted(() => {
+  if (!insightsResetPerformed) {
+    clearFullResultsPersistence()
+    resetInsightStates({ clearStorage: true })
+    insightsResetPerformed = true
+  }
+  initializeFullResultsState()
+  if (showResults.value && !fullResultsUnlocked.value) {
+    startInsightMonitoring()
+  }
+})
+
 watch(gateStep, (value, previous) => {
   if (value === 1) {
     startArticleMonitoring()
@@ -662,6 +946,27 @@ watch(gateStep, (value, previous) => {
   }
 })
 
+watch(showResults, (value) => {
+  if (value) {
+    updateInsightProgress()
+    if (!fullResultsUnlocked.value) {
+      startInsightMonitoring()
+    }
+  } else {
+    stopInsightMonitoring()
+  }
+})
+
+watch(insightsCompleted, (value) => {
+  if (value) {
+    if (!fullResultsUnlocked.value) {
+      fullResultsUnlocked.value = true
+    }
+    persistFullResultsUnlock()
+    stopInsightMonitoring()
+  }
+})
+
 watch(answeredCount, (value, previous) => {
   if (value > 0 && (formStartTime.value === null || previous === 0)) {
     formStartTime.value = Date.now()
@@ -670,6 +975,7 @@ watch(answeredCount, (value, previous) => {
 
 onBeforeUnmount(() => {
   stopArticleMonitoring()
+  stopInsightMonitoring()
   stopThinkingIntervals()
 })
 </script>
@@ -762,12 +1068,20 @@ onBeforeUnmount(() => {
 
 .dimension-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
+  align-items: stretch;
 }
 
 .dimension-card {
   box-shadow: none;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.dimension-card.is-locked {
+  opacity: 0.75;
 }
 
 .dimension-body {
@@ -793,9 +1107,88 @@ onBeforeUnmount(() => {
   color: #6b7280;
 }
 
-.download-area {
+.dimension-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  gap: 0.5rem;
+  color: rgba(15, 23, 42, 0.7);
+  text-align: center;
+  font-weight: 600;
+}
+
+.dimension-locked i {
+  font-size: 1.75rem;
+  color: #6366f1;
+}
+
+.insight-message {
+  margin-top: 1.5rem;
+}
+
+.insight-task-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.insight-task-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: none;
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+}
+
+.insight-task-card.is-complete {
+  box-shadow: 0 24px 60px rgba(34, 197, 94, 0.22);
+}
+
+.insight-task-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.insight-task-title i {
+  font-size: 1.1rem;
+  color: #6366f1;
+}
+
+.insight-task-card.is-complete .insight-task-title i {
+  color: #22c55e;
+}
+
+.insight-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.insight-progress {
+  margin: 0;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.insight-remaining {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.insight-actions {
+  margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+}
+
+.download-area {
+  display: flex;
+  justify-content: center;
 }
 
 .wasted-banner {
@@ -980,6 +1373,11 @@ onBeforeUnmount(() => {
 
   .options-grid {
     flex-direction: column;
+  }
+
+  .dimension-grid,
+  .insight-task-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 }
 </style>

@@ -17,6 +17,18 @@ const router = createRouter({
       path: '/insights',
       name: 'Article',
       component: () => import('../views/ArticleView.vue') // @ts-ignore
+    },
+    {
+      path: '/insights/communication-bias',
+      name: 'InsightOne',
+      // @ts-ignore Lazy-loaded Vue SFC
+      component: () => import('../views/InsightOneView.vue')
+    },
+    {
+      path: '/insights/habit-design',
+      name: 'InsightTwo',
+      // @ts-ignore Lazy-loaded Vue SFC
+      component: () => import('../views/InsightTwoView.vue')
     }
   ],
   scrollBehavior() {

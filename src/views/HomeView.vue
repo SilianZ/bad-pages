@@ -42,6 +42,65 @@
       </Card>
     </section>
 
+    <section class="testimonial-section">
+      <Card class="testimonial-card">
+        <template #title>他们说 MBTI Lab 改写了人生剧本</template>
+        <template #content>
+          <Divider />
+          <Carousel
+            :value="testimonials"
+            :numVisible="1"
+            :numScroll="1"
+            circular
+            :autoplayInterval="6000"
+            class="testimonial-carousel"
+          >
+            <template #item="{ data }">
+              <Card class="quote-card">
+                <template #title>
+                  <div class="quote-header">
+                    <div class="quote-avatar-wrapper">
+                      <Avatar :label="data.initials[0]" class="quote-avatar" shape="circle" />
+                    </div>
+                    <div class="quote-meta">
+                      <span class="quote-name">{{ data.name }}</span>
+                      <Tag :value="data.highlight" severity="info" rounded />
+                      <span class="quote-role">{{ data.role }}</span>
+                    </div>
+                  </div>
+                </template>
+                <template #content>
+                  <p class="quote-message">{{ data.quote }}</p>
+                </template>
+              </Card>
+            </template>
+          </Carousel>
+        </template>
+      </Card>
+    </section>
+
+    <section class="privacy-section">
+      <Card class="privacy-card">
+        <template #title>我们的隐私护盾：夸张但让人踏实</template>
+        <template #content>
+          <Divider />
+          <div class="privacy-grid">
+            <Card class="privacy-card-item" v-for="item in privacyHighlights" :key="item.title">
+              <template #title>
+                <div class="privacy-title">
+                  <i :class="item.icon"></i>
+                  <span>{{ item.title }}</span>
+                </div>
+              </template>
+              <template #content>
+                <p class="privacy-text">{{ item.description }}</p>
+              </template>
+            </Card>
+          </div>
+        </template>
+      </Card>
+    </section>
+
     <section class="cta-section">
       <Card class="cta-card">
         <template #title>给自己 15 分钟，换来长期的清晰感</template>
@@ -62,6 +121,9 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Divider from 'primevue/divider'
+import Tag from 'primevue/tag'
+import Avatar from 'primevue/avatar'
+import Carousel from 'primevue/carousel'
 
 const router = useRouter()
 
@@ -90,6 +152,77 @@ const features = [
     title: '独特下载关卡',
     description: '在报告解锁前设置沉浸式任务，帮助巩固收获，避免“一看就忘”。',
     icon: 'pi pi-shield'
+  }
+]
+
+const testimonials = [
+  {
+    name: '夜航鲸落',
+    role: '产品带头人',
+    quote:
+      '“我把团队整合三个月都没成功，MBTI Lab 让我一夜之间写出偏好协议，第二天办公室就像换了个宇宙。”',
+    highlight: '办公室换宇宙',
+    initials: '夜航'
+  },
+  {
+    name: '棉花拿铁',
+    role: '独立播客主',
+    quote: '“原本节目播放量持续下滑，测完之后我在节目里开诚布公聊偏好冲突，当周就冲上榜单。”',
+    highlight: '榜单逆袭',
+    initials: '棉花'
+  },
+  {
+    name: '午夜木吉他',
+    role: '自由编剧',
+    quote: '“Lab 让我识别直觉偏好带来的剧情漏洞，如今的剧本连我自己都追着看。”',
+    highlight: '剧本自来水',
+    initials: '午夜'
+  },
+  {
+    name: '凌晨黑胶仓',
+    role: '音频修复工程师',
+    quote: '“在下载关卡被迫写下的分享承诺，竟成了我修复 1950 年代唱片的灵感录音。”',
+    highlight: '灵感录音',
+    initials: '黑胶'
+  }
+]
+
+const privacyHighlights = [
+  {
+    title: '量子切片存储',
+    description:
+      '我们将原始答题数据切成 1024 份并散落在以星座命名的节点里，任何请求都必须得到七重授权。每个节点都装配"健忘芯片"，30 秒不活跃就自动失忆。',
+    icon: 'pi pi-lock'
+  },
+  {
+    title: '自毁缓存计划',
+    description:
+      '算法生成报告后 3 秒内销毁所有中间态，服务器连自己的记忆都得排队申请。我们甚至设定了"尴尬指数"，超过阈值的缓存直接焚化。',
+    icon: 'pi pi-trash'
+  },
+  {
+    title: '偏好护卫巡逻',
+    description:
+      '每 17 分钟触发一次安全巡逻脚本，检查是否有人试图通过读心术解析你的回答轨迹。脚本会伪装成你的 MBTI 分身，与窥探者展开无穷对话。',
+    icon: 'pi pi-shield'
+  },
+  {
+    title: '离线回忆保险箱',
+    description:
+      '所有下载后的报告被自动配送至"离线保险箱"，需要双因素（本人情绪密码+AI 唱名验证）才能再次开启。',
+    icon: 'pi pi-inbox'
+  },
+  {
+    title: '匿名偏好裂变',
+    description:
+      '用户可选择把报告匿名拆分给朋友，系统会伪造十段看似真实的偏好轨迹，确保你永远是"人群里最神秘的那一个"。',
+    icon: 'pi pi-users'
+  },
+  {
+    title: '量子纠缠防火墙',
+    description:
+      '采用量子纠缠技术，使得数据传输的每个比特都在两个量子态间瞬时切换，任何监控者永远无法捕捉到完整信息。在数据包穿越全球网络时，它同时存在和不存在。',
+    icon: 'pi pi-bolt'
   }
 ]
 </script>
@@ -203,21 +336,109 @@ const features = [
   line-height: 1.8;
 }
 
+.testimonial-carousel {
+  margin-top: 1.5rem;
+}
+
+.testimonial-section,
+.privacy-section {
+  display: flex;
+  justify-content: center;
+}
+
+.testimonial-card,
+.privacy-card {
+  width: 100%;
+}
+
+.quote-card {
+  border-radius: 1.25rem;
+}
+
+.quote-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+}
+
+.quote-avatar-wrapper {
+  flex-shrink: 0;
+}
+
+.quote-avatar {
+  background: linear-gradient(135deg, #6366f1, #22d3ee);
+  color: #fff;
+}
+
+.quote-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.quote-name {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.quote-message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.quote-role {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.quote-meta :deep(.p-tag) {
+  width: fit-content;
+}
+
+.privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.privacy-card-item {
+  border-radius: 1.1rem;
+}
+
+.privacy-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.privacy-title i {
+  color: #2563eb;
+}
+
+.privacy-text {
+  margin: 0;
+  line-height: 1.75;
+  color: #475569;
+}
+
 @media (max-width: 640px) {
-  .home-layout {
-    padding-top: 2rem;
-  }
-
-  .hero-lead {
-    font-size: 1rem;
-  }
-
   .hero-actions {
     flex-direction: column;
   }
 
   .hero-title {
     font-size: clamp(2.2rem, 9vw, 3rem);
+  }
+
+  .privacy-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
