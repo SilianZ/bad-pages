@@ -1,29 +1,27 @@
 <template>
 	<div class="app-shell">
 		<header class="app-header">
-			<RouterLink to="/" class="brand">MBTI Lab</RouterLink>
+			<Silian_RouterLink to="/" class="brand">MBTI Lab</Silian_RouterLink>
 			<nav class="nav-links">
-				<RouterLink to="/" class="nav-link" active-class="is-active">首页</RouterLink>
-				<RouterLink to="/test" class="nav-link" active-class="is-active">开始测试</RouterLink>
+				<Silian_RouterLink to="/" class="nav-link" active-class="is-active">首页</Silian_RouterLink>
+				<Silian_RouterLink to="/test" class="nav-link" active-class="is-active">开始测试</Silian_RouterLink>
 			</nav>
 		</header>
 
 		<main class="app-main">
-			<RouterView />
+			<Silian_RouterView />
 		</main>
 
 		<footer class="app-footer">
-			<span>© {{ currentYear }} MBTI Lab · 探索偏好，延伸可能</span>
+			<span>© {{ Silian_currentYear }} MBTI Lab · 探索偏好，延伸可能</span>
 		</footer>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
-
-const currentYear = computed(() => new Date().getFullYear())
-</script>
+import { computed as Silian_computed } from 'vue';
+import { RouterLink as Silian_RouterLink, RouterView as Silian_RouterView } from 'vue-router';
+const Silian_currentYear = Silian_computed(() => new Date().getFullYear());</script>
 
 <style>
 body {
